@@ -41,6 +41,11 @@ export default function FormatCanvas({ label, width, height, post, formatKey, cr
     return defaultCropPos(img, width, height)
   }
 
+  // Preload texture so it's in the cache when drawPost runs
+  useEffect(() => {
+    if (post.texture) loadImage(post.texture).catch(() => {})
+  }, [post.texture])
+
   useEffect(() => {
     if (!post.imageUrl) { setImgObj(null); return }
     loadImage(post.imageUrl).then(img => {
@@ -68,6 +73,7 @@ export default function FormatCanvas({ label, width, height, post, formatKey, cr
     authorSize: post.authorSizes?.[formatKey] ?? post.authorSize,
     splitDirection: post.splitDirections?.[formatKey] ?? post.splitDirection,
     imagePosition: post.imagePositions?.[formatKey] ?? post.imagePosition,
+    textWidth: post.textWidths?.[formatKey] ?? post.textWidth,
   }
 
   // Keep a ref to always-current draw args so font-load callbacks use fresh data

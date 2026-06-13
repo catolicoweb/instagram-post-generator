@@ -13,6 +13,34 @@ export function loadImage(url) {
   })
 }
 
+// Calcula startY a partir del slider textPositionY (0=arriba, 100=abajo)
+function computeStartY(post, ch, blockH, pad) {
+  if (post.textPositionY !== undefined) {
+    const pct = Math.max(0, Math.min(100, post.textPositionY)) / 100
+    return pad + Math.max(0, ch - pad * 2 - blockH) * pct
+  }
+  if (post.textPosition === 'top')    return pad
+  if (post.textPosition === 'bottom') return ch - pad - blockH
+  return (ch - blockH) / 2
+}
+
+function applyOverlay(ctx, post, cw, ch) {
+  if (!(post.overlayOpacity > 0)) return
+  const hex = post.overlayColor || '#000000'
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  if (post.overlayMode === 'gradient') {
+    const grad = ctx.createLinearGradient(0, 0, 0, ch)
+    grad.addColorStop(0, `rgba(${r},${g},${b},0)`)
+    grad.addColorStop(1, `rgba(${r},${g},${b},${post.overlayOpacity})`)
+    ctx.fillStyle = grad
+  } else {
+    ctx.fillStyle = `rgba(${r},${g},${b},${post.overlayOpacity})`
+  }
+  ctx.fillRect(0, 0, cw, ch)
+}
+
 function wrapText(ctx, text, maxWidth) {
   const words = text.split(' ')
   const lines = []
@@ -51,76 +79,70 @@ function drawQuoteBg(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
     )
   }
 
-  if (post.overlayOpacity > 0) {
-    const hex = post.overlayColor || '#000000'
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    ctx.fillStyle = `rgba(${r},${g},${b},${post.overlayOpacity})`
-    ctx.fillRect(0, 0, cw, ch)
-  }
+  applyOverlay(ctx, post, cw, ch)
+
+  drawTextureOverlay(ctx, post, cw, ch, null, scale)
 
   const quote = post.quote || ''
   const author = post.author || ''
   if (!quote && !author) return
 
   const pad = 36 * scale
-  const maxW = cw - pad * 2
+  const maxW = (cw - pad * 2) * ((post.textWidth ?? 100) / 100)
   const quoteSize = Number(post.quoteSize) * scale
   const authorSize = Number(post.authorSize) * scale
   const lineH = quoteSize * 1.35
+  const authorLineH = authorSize * 1.3
+  const date = post.date || ''
+  const dateSize = authorSize * 0.82
+  const dividerGap = 18 * scale
 
-  ctx.font = `400 ${quoteSize}px "${post.quoteFont}", Georgia, serif`
+  ctx.font = `${post.quoteWeight || '400'} ${quoteSize}px "${post.quoteFont}", Georgia, serif`
   const lines = quote ? wrapText(ctx, quote, maxW) : []
-  const decorSize = quoteSize * 2.2
-
   ctx.font = `400 ${authorSize}px "${post.authorFont}", Georgia, serif`
   const authorLines = author ? wrapText(ctx, author, maxW) : []
-  const authorLineH = authorSize * 1.3
 
-  const date     = post.date || ''
-  const dateSize = authorSize * 0.82
-  const dateGap  = authorSize * 0.55
+  const blockH =
+    lines.length * lineH +
+    (authorLines.length ? dividerGap + 1 * scale + dividerGap + authorLines.length * authorLineH : 0) +
+    (date && authorLines.length ? authorSize * 0.4 + dateSize : 0)
 
-  const blockH = decorSize * 0.5 + lines.length * lineH
-    + (authorLines.length ? authorSize * 0.6 + authorLines.length * authorLineH : 0)
-    + (date && authorLines.length ? dateGap + dateSize : 0)
+  const startY = computeStartY(post, ch, blockH, pad)
 
-  let startY
-  if (post.textPosition === 'top') startY = pad + decorSize * 0.5
-  else if (post.textPosition === 'bottom') startY = ch - pad - blockH
-  else startY = (ch - blockH) / 2
-
-  ctx.font = `700 ${decorSize}px "${post.quoteFont}", Georgia, serif`
-  ctx.fillStyle = post.textColor || '#ffffff'
-  ctx.globalAlpha = 0.5
   ctx.textBaseline = 'top'
-  ctx.fillText('"', pad - decorSize * 0.1, startY)
-  ctx.globalAlpha = 1
+  ctx.textAlign = 'center'
 
-  ctx.font = `400 ${quoteSize}px "${post.quoteFont}", Georgia, serif`
-  ctx.fillStyle = post.textColor || '#ffffff'
-  ctx.textBaseline = 'top'
-  lines.forEach((line, i) => {
-    ctx.fillText(line, pad, startY + decorSize * 0.55 + i * lineH)
-  })
+  if (lines.length) {
+    ctx.font = `${post.quoteWeight || '400'} ${quoteSize}px "${post.quoteFont}", Georgia, serif`
+    ctx.fillStyle = post.textColor || '#ffffff'
+    lines.forEach((line, i) => ctx.fillText(line, cw / 2, startY + i * lineH))
+  }
 
   if (authorLines.length) {
+    const divY = startY + lines.length * lineH + dividerGap
+    ctx.strokeStyle = post.textColor || '#ffffff'
+    ctx.globalAlpha = 0.3
+    ctx.lineWidth = 1 * scale
+    ctx.beginPath()
+    ctx.moveTo(cw / 2 - 30 * scale, divY)
+    ctx.lineTo(cw / 2 + 30 * scale, divY)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+
+    const authorY = divY + 1 * scale + dividerGap
     ctx.font = `400 ${authorSize}px "${post.authorFont}", Georgia, serif`
     ctx.fillStyle = post.textColor || '#ffffff'
     ctx.globalAlpha = 0.75
-    const authorStartY = startY + decorSize * 0.55 + lines.length * lineH + authorSize * 0.6
-    authorLines.forEach((line, i) => {
-      ctx.fillText(line, pad, authorStartY + i * authorLineH)
-    })
+    authorLines.forEach((line, i) => ctx.fillText(line, cw / 2, authorY + i * authorLineH))
     if (date) {
       ctx.font = `${post.dateWeight || '400'} ${dateSize}px "${post.authorFont}", Georgia, serif`
       ctx.fillStyle = post.dateColor || (post.textColor || '#ffffff')
       ctx.globalAlpha = post.dateColor ? 1 : 0.5
-      ctx.fillText(date, pad, authorStartY + authorLines.length * authorLineH + dateGap)
+      ctx.fillText(date, cw / 2, authorY + authorLines.length * authorLineH + authorSize * 0.4)
     }
     ctx.globalAlpha = 1
   }
+  ctx.textAlign = 'left'
 }
 
 function drawSaintDay(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
@@ -133,30 +155,36 @@ function drawSaintDay(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
   const fontFace = `"${post.quoteFont || 'EB Garamond'}", Georgia, serif`
   const color = post.textColor || '#ffffff'
   const pad = 24 * scale
-  const maxW = cw * 0.82
+  const maxW = cw * 0.82 * ((post.textWidth ?? 100) / 100)
 
   const circleR = Math.min(cw, ch) * 0.20
   const nameSize = Number(post.quoteSize || 26) * scale
   const descSize = Number(post.authorSize || 18) * scale
 
+  const nameAtBottom = post.saintNamePosition === 'bottom'
+
   // Measure text to know total block height before drawing
-  ctx.font = `700 ${nameSize}px ${fontFace}`
+  ctx.font = `${post.quoteWeight || '700'} ${nameSize}px ${fontFace}`
   const nameLines = post.saintName ? wrapText(ctx, post.saintName, maxW) : []
   ctx.font = `400 ${descSize}px ${fontFace}`
   const descLines = post.description ? wrapText(ctx, post.description, maxW) : []
   const hasDate = !!post.date
+  const dividerGap = 16 * scale
 
-  let blockH = circleR * 2 + 26 * scale
-  if (nameLines.length) blockH += nameLines.length * nameSize * 1.22 + 16 * scale
-  if (descLines.length) blockH += descLines.length * descSize * 1.45 + 22 * scale
-  if (hasDate) blockH += 18 * scale + descSize
+  const showCircle = !post.hideImage
 
-  // Vertical alignment of the whole block
-  const pos = post.textPosition || 'middle'
-  let startY
-  if (pos === 'top') startY = pad
-  else if (pos === 'bottom') startY = Math.max(pad, ch - pad - blockH)
-  else startY = Math.max(pad, (ch - blockH) / 2)
+  let blockH = showCircle ? circleR * 2 + 26 * scale : 0
+  if (nameAtBottom) {
+    if (descLines.length) blockH += descLines.length * descSize * 1.45 + 22 * scale
+    if (hasDate) blockH += 14 * scale + descSize
+    if (nameLines.length) blockH += dividerGap + 1 * scale + dividerGap + nameLines.length * nameSize * 1.22
+  } else {
+    if (nameLines.length) blockH += nameLines.length * nameSize * 1.22 + 16 * scale
+    if (descLines.length) blockH += descLines.length * descSize * 1.45 + 22 * scale
+    if (hasDate) blockH += 18 * scale + descSize
+  }
+
+  const startY = Math.max(pad, computeStartY(post, ch, blockH, pad))
 
   const circleCx = cw / 2
   const circleCy = startY + circleR
@@ -165,8 +193,10 @@ function drawSaintDay(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
   ctx.fillStyle = post.bgColor || '#7a9170'
   ctx.fillRect(0, 0, cw, ch)
 
+  drawTextureOverlay(ctx, post, cw, ch, null, scale)
+
   // Circle image — clipped to arc, positioned via cropPos/imgScale like other templates
-  if (imgObj) {
+  if (imgObj && showCircle) {
     ctx.save()
     ctx.beginPath()
     ctx.arc(circleCx, circleCy, circleR, 0, Math.PI * 2)
@@ -181,44 +211,87 @@ function drawSaintDay(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
     ctx.restore()
   }
 
-  let y = circleCy + circleR + 26 * scale
+  let y = showCircle ? circleCy + circleR + 26 * scale : startY
   ctx.textBaseline = 'top'
   ctx.textAlign = 'center'
 
-  // Saint name
-  if (nameLines.length) {
-    ctx.font = `700 ${nameSize}px ${fontFace}`
-    ctx.fillStyle = color
-    nameLines.forEach((line, i) => {
-      ctx.fillText(line, cw / 2, y + i * nameSize * 1.22)
-    })
-    y += nameLines.length * nameSize * 1.22 + 16 * scale
-  }
+  if (nameAtBottom) {
+    // Description first
+    if (descLines.length) {
+      ctx.font = `400 ${descSize}px ${fontFace}`
+      ctx.fillStyle = color
+      ctx.globalAlpha = 0.82
+      descLines.forEach((line, i) => {
+        ctx.fillText(line, cw / 2, y + i * descSize * 1.45)
+      })
+      ctx.globalAlpha = 1
+      y += descLines.length * descSize * 1.45 + 22 * scale
+    }
 
-  // Description
-  if (descLines.length) {
-    ctx.font = `400 ${descSize}px ${fontFace}`
-    ctx.fillStyle = color
-    ctx.globalAlpha = 0.82
-    descLines.forEach((line, i) => {
-      ctx.fillText(line, cw / 2, y + i * descSize * 1.45)
-    })
-    ctx.globalAlpha = 1
-    y += descLines.length * descSize * 1.45 + 22 * scale
-  }
+    // Date
+    if (hasDate) {
+      ctx.font = `${post.dateWeight || '500'} ${descSize * 0.82}px ${fontFace}`
+      ctx.fillStyle = post.dateColor || color
+      ctx.globalAlpha = post.dateColor ? 1 : 0.65
+      ctx.fillText(post.date, cw / 2, y)
+      ctx.globalAlpha = 1
+      y += descSize + 14 * scale
+    }
 
-  // Divider + date
-  if (hasDate) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)'
-    ctx.lineWidth = 1 * scale
-    ctx.beginPath()
-    ctx.moveTo(cw * 0.25, y)
-    ctx.lineTo(cw * 0.75, y)
-    ctx.stroke()
-    y += 18 * scale
-    ctx.font = `${post.dateWeight || '500'} ${descSize}px ${fontFace}`
-    ctx.fillStyle = post.dateColor || color
-    ctx.fillText(post.date, cw / 2, y)
+    // Separator + saint name at bottom
+    if (nameLines.length) {
+      ctx.strokeStyle = color
+      ctx.globalAlpha = 0.25
+      ctx.lineWidth = 1 * scale
+      ctx.beginPath()
+      ctx.moveTo(cw * 0.25, y)
+      ctx.lineTo(cw * 0.75, y)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+      y += 1 * scale + dividerGap
+
+      ctx.font = `${post.quoteWeight || '700'} ${nameSize}px ${fontFace}`
+      ctx.fillStyle = color
+      nameLines.forEach((line, i) => {
+        ctx.fillText(line, cw / 2, y + i * nameSize * 1.22)
+      })
+    }
+  } else {
+    // Saint name first (original layout)
+    if (nameLines.length) {
+      ctx.font = `${post.quoteWeight || '700'} ${nameSize}px ${fontFace}`
+      ctx.fillStyle = color
+      nameLines.forEach((line, i) => {
+        ctx.fillText(line, cw / 2, y + i * nameSize * 1.22)
+      })
+      y += nameLines.length * nameSize * 1.22 + 16 * scale
+    }
+
+    // Description
+    if (descLines.length) {
+      ctx.font = `400 ${descSize}px ${fontFace}`
+      ctx.fillStyle = color
+      ctx.globalAlpha = 0.82
+      descLines.forEach((line, i) => {
+        ctx.fillText(line, cw / 2, y + i * descSize * 1.45)
+      })
+      ctx.globalAlpha = 1
+      y += descLines.length * descSize * 1.45 + 22 * scale
+    }
+
+    // Divider + date
+    if (hasDate) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+      ctx.lineWidth = 1 * scale
+      ctx.beginPath()
+      ctx.moveTo(cw * 0.25, y)
+      ctx.lineTo(cw * 0.75, y)
+      ctx.stroke()
+      y += 18 * scale
+      ctx.font = `${post.dateWeight || '500'} ${descSize}px ${fontFace}`
+      ctx.fillStyle = post.dateColor || color
+      ctx.fillText(post.date, cw / 2, y)
+    }
   }
 
   ctx.textAlign = 'left'
@@ -274,8 +347,9 @@ function drawSplitQuote(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
 
     ctx.fillStyle = post.bgColor || '#f0d4b8'
     ctx.fillRect(0, panelY, cw, halfH)
+    drawTextureOverlay(ctx, post, cw, ch, { x: 0, y: panelY, w: cw, h: halfH }, scale)
 
-    const maxW = cw - pad * 2
+    const maxW = (cw - pad * 2) * ((post.textWidth ?? 100) / 100)
     ctx.font = `400 ${quoteSize}px ${fontFace}`
     const quotedText = post.quote ? `”${post.quote}”` : ''
     const lines = quotedText ? wrapText(ctx, quotedText, maxW) : []
@@ -340,9 +414,10 @@ function drawSplitQuote(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
 
     ctx.fillStyle = post.bgColor || '#f0d4b8'
     ctx.fillRect(panelX, 0, cw / 2, ch)
+    drawTextureOverlay(ctx, post, cw, ch, { x: panelX, y: 0, w: cw / 2, h: ch }, scale)
 
     const textLeft = panelX + pad
-    const maxW = cw / 2 - pad * 2
+    const maxW = (cw / 2 - pad * 2) * ((post.textWidth ?? 100) / 100)
 
     ctx.font = `400 ${quoteSize}px ${fontFace}`
     const quotedText = post.quote ? `”${post.quote}”` : ''
@@ -406,21 +481,16 @@ function drawQuote(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
     )
   }
 
-  if (post.overlayOpacity > 0) {
-    const hex = post.overlayColor || '#000000'
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    ctx.fillStyle = `rgba(${r},${g},${b},${post.overlayOpacity})`
-    ctx.fillRect(0, 0, cw, ch)
-  }
+  applyOverlay(ctx, post, cw, ch)
+
+  drawTextureOverlay(ctx, post, cw, ch, null, scale)
 
   const quote = post.quote || ''
   const author = post.author || ''
   if (!quote && !author) return
 
   const pad = 40 * scale
-  const maxW = cw - pad * 2
+  const maxW = (cw - pad * 2) * ((post.textWidth ?? 100) / 100)
   const quoteSize = Number(post.quoteSize) * scale
   const authorSize = Number(post.authorSize) * scale
   const lineH = quoteSize * 1.4
@@ -430,9 +500,10 @@ function drawQuote(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
   const dividerGap = 20 * scale
   const dividerH = 1 * scale
 
-  ctx.font = `400 ${quoteSize}px "${post.quoteFont}", Georgia, serif`
-  const lines = quote ? wrapText(ctx, `“${quote}”`, maxW) : []
-  ctx.font = `400 ${authorSize}px "${post.authorFont}", Georgia, serif`
+  const quoteText = post.showQuoteMark !== false ? `”${quote}”` : quote
+  ctx.font = `400 ${quoteSize}px “${post.quoteFont}”, Georgia, serif`
+  const lines = quote ? wrapText(ctx, quoteText, maxW) : []
+  ctx.font = `400 ${authorSize}px “${post.authorFont}”, Georgia, serif`
   const authorLines = author ? wrapText(ctx, author, maxW) : []
 
   const blockH =
@@ -440,16 +511,13 @@ function drawQuote(canvas, post, w, h, imgObj, cropPos, imgScale, scale) {
     (authorLines.length ? dividerGap + dividerH + dividerGap + authorLines.length * authorLineH : 0) +
     (date && authorLines.length ? authorSize * 0.5 + dateSize : 0)
 
-  let startY
-  if (post.textPosition === 'top') startY = pad
-  else if (post.textPosition === 'bottom') startY = ch - pad - blockH
-  else startY = (ch - blockH) / 2
+  const startY = computeStartY(post, ch, blockH, pad)
 
   ctx.textBaseline = 'top'
   ctx.textAlign = 'center'
 
   if (lines.length) {
-    ctx.font = `400 ${quoteSize}px "${post.quoteFont}", Georgia, serif`
+    ctx.font = `${post.quoteWeight || '400'} ${quoteSize}px "${post.quoteFont}", Georgia, serif`
     ctx.fillStyle = post.textColor || '#ffffff'
     lines.forEach((line, i) => ctx.fillText(line, cw / 2, startY + i * lineH))
   }
@@ -503,14 +571,9 @@ function drawSaintHighlight(canvas, post, w, h, imgObj, cropPos, imgScale, scale
     )
   }
 
-  if (post.overlayOpacity > 0) {
-    const hex = post.overlayColor || '#000000'
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    ctx.fillStyle = `rgba(${r},${g},${b},${post.overlayOpacity})`
-    ctx.fillRect(0, 0, cw, ch)
-  }
+  applyOverlay(ctx, post, cw, ch)
+
+  drawTextureOverlay(ctx, post, cw, ch, null, scale)
 
   const saintName = post.saintName || ''
   const description = post.description || ''
@@ -518,7 +581,7 @@ function drawSaintHighlight(canvas, post, w, h, imgObj, cropPos, imgScale, scale
   if (!saintName && !description) return
 
   const pad = 40 * scale
-  const maxW = cw - pad * 2
+  const maxW = (cw - pad * 2) * ((post.textWidth ?? 100) / 100)
   const nameSize = Number(post.quoteSize) * scale
   const descSize = Number(post.authorSize) * scale
   const dateSize = nameSize * 0.6
@@ -527,7 +590,7 @@ function drawSaintHighlight(canvas, post, w, h, imgObj, cropPos, imgScale, scale
   const descLineH = descSize * 1.5
   const dividerGap = 18 * scale
 
-  ctx.font = `500 ${nameSize}px "${post.quoteFont}", Georgia, serif`
+  ctx.font = `${post.quoteWeight || '500'} ${nameSize}px "${post.quoteFont}", Georgia, serif`
   const nameLines = saintName ? wrapText(ctx, saintName, maxW) : []
   ctx.font = `400 ${descSize}px "${post.authorFont}", Georgia, serif`
   const descLines = description ? wrapText(ctx, description, maxW) : []
@@ -537,16 +600,13 @@ function drawSaintHighlight(canvas, post, w, h, imgObj, cropPos, imgScale, scale
     (date ? 14 * scale + dateSize : 0) +
     (descLines.length ? dividerGap + 1 * scale + dividerGap + descLines.length * descLineH : 0)
 
-  let startY
-  if (post.textPosition === 'top') startY = pad
-  else if (post.textPosition === 'bottom') startY = ch - pad - blockH
-  else startY = (ch - blockH) / 2
+  const startY = computeStartY(post, ch, blockH, pad)
 
   ctx.textBaseline = 'top'
   ctx.textAlign = 'center'
 
   if (nameLines.length) {
-    ctx.font = `500 ${nameSize}px "${post.quoteFont}", Georgia, serif`
+    ctx.font = `${post.quoteWeight || '500'} ${nameSize}px "${post.quoteFont}", Georgia, serif`
     ctx.fillStyle = color
     nameLines.forEach((line, i) => ctx.fillText(line, cw / 2, startY + i * nameLineH))
   }
@@ -656,8 +716,31 @@ export function drawPost(canvas, post, w, h, imgObj, cropPos, imgScale, scale = 
   }
 
   if (post.storyRichText?.trim()) {
-    drawRichTextOverlay(canvas.getContext('2d'), post, canvas.width, canvas.height, scale)
+    const ctx2 = canvas.getContext('2d')
+    drawRichTextOverlay(ctx2, post, canvas.width, canvas.height, scale)
   }
+}
+
+// clipRect = { x, y, w, h } — si se pasa, la textura solo se aplica en esa zona
+function drawTextureOverlay(ctx, post, cw, ch, clipRect = null, scale = 1) {
+  if (!post.texture) return
+  const img = imageCache.get(post.texture)
+  if (!img) return
+  ctx.save()
+  if (clipRect) {
+    ctx.beginPath()
+    ctx.rect(clipRect.x, clipRect.y, clipRect.w, clipRect.h)
+    ctx.clip()
+  }
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.globalAlpha = post.textureOpacity ?? 0.5
+  const pat = ctx.createPattern(img, 'repeat')
+  if (!pat) { ctx.restore(); return }
+  const s = (post.textureScale ?? 0.3) * scale
+  pat.setTransform(new DOMMatrix().scaleSelf(s, s))
+  ctx.fillStyle = pat
+  ctx.fillRect(0, 0, cw, ch)
+  ctx.restore()
 }
 
 export function defaultCropPos(imgObj, w, h) {

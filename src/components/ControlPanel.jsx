@@ -24,6 +24,7 @@ export default function ControlPanel({ post, onChange }) {
   const uploadRef = useRef(null)
   const [sizeScope, setSizeScope] = useState('all')
   const [splitScope, setSplitScope] = useState('all')
+  const [textWidthScope, setTextWidthScope] = useState('all')
 
   const effectiveQuoteSize = sizeScope === 'all'
     ? post.quoteSize
@@ -37,12 +38,12 @@ export default function ControlPanel({ post, onChange }) {
   const hasAuthorOverride = sizeScope !== 'all' && post.authorSizes?.[sizeScope] !== undefined
 
   const handleQuoteSizeChange = (value) => {
-    if (sizeScope === 'all') onChange({ ...post, quoteSize: value })
+    if (sizeScope === 'all') onChange({ ...post, quoteSize: Number(value), quoteSizes: {} })
     else onChange({ ...post, quoteSizes: { ...(post.quoteSizes || {}), [sizeScope]: Number(value) } })
   }
 
   const handleAuthorSizeChange = (value) => {
-    if (sizeScope === 'all') onChange({ ...post, authorSize: value })
+    if (sizeScope === 'all') onChange({ ...post, authorSize: Number(value), authorSizes: {} })
     else onChange({ ...post, authorSizes: { ...(post.authorSizes || {}), [sizeScope]: Number(value) } })
   }
 
@@ -352,14 +353,45 @@ export default function ControlPanel({ post, onChange }) {
               />
             </section>
             {template === 'saint-day' && (
-              <section>
-                <label className="section-label">Background Color</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <input type="color" value={post.bgColor || '#7a9170'} onChange={set('bgColor')}
-                    className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
-                  <span className="text-xs text-white/50">{post.bgColor || '#7a9170'}</span>
-                </div>
-              </section>
+              <>
+                <section>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!post.hideImage}
+                      onChange={e => onChange({ ...post, hideImage: e.target.checked })}
+                      style={{ width: 14, height: 14, accentColor: '#fff', cursor: 'pointer' }}
+                    />
+                    <span className="section-label" style={{ margin: 0 }}>Hide image</span>
+                  </label>
+                </section>
+                <section>
+                  <label className="section-label">Name Position</label>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    {[{ id: 'top', label: 'Above desc' }, { id: 'bottom', label: 'Below (footer)' }].map(opt => {
+                      const active = (post.saintNamePosition || 'top') === opt.id
+                      return (
+                        <button key={opt.id} onClick={() => onChange({ ...post, saintNamePosition: opt.id })}
+                          style={{
+                            flex: 1, fontSize: 11, fontWeight: 500, padding: '5px 8px', borderRadius: 6,
+                            border: active ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                            background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
+                            color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                            cursor: active ? 'default' : 'pointer', outline: 'none', transition: 'all 0.12s',
+                          }}>{opt.label}</button>
+                      )
+                    })}
+                  </div>
+                </section>
+                <section>
+                  <label className="section-label">Background Color</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input type="color" value={post.bgColor || '#7a9170'} onChange={set('bgColor')}
+                      className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
+                    <span className="text-xs text-white/50">{post.bgColor || '#7a9170'}</span>
+                  </div>
+                </section>
+              </>
             )}
           </>
         ) : template === 'split-quote' ? (
@@ -464,8 +496,25 @@ export default function ControlPanel({ post, onChange }) {
               <button onClick={() => resetSizeOverride('quote')} style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>reset</button>
             )}
           </div>
-          <input type="range" min={14} max={72} value={effectiveQuoteSize}
+          <input type="range" min={8} max={72} value={effectiveQuoteSize}
             onChange={e => handleQuoteSizeChange(e.target.value)} className="w-full mt-1 accent-white" />
+
+          <label className="section-label mt-3 block">Quote Weight</label>
+          <div style={{ display: 'flex', gap: 3, marginTop: 6 }}>
+            {['300', '400', '500', '700'].map(w => {
+              const active = (post.quoteWeight || '400') === w
+              return (
+                <button key={w} onClick={() => onChange({ ...post, quoteWeight: w })}
+                  style={{
+                    flex: 1, fontSize: 10, fontWeight: Number(w), padding: '4px 2px', borderRadius: 4,
+                    border: active ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                    background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+                    color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                    cursor: 'pointer', outline: 'none', transition: 'all 0.12s',
+                  }}>{w}</button>
+              )
+            })}
+          </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
             <label className="section-label" style={{ margin: 0 }}>
@@ -477,6 +526,57 @@ export default function ControlPanel({ post, onChange }) {
           </div>
           <input type="range" min={10} max={36} value={effectiveAuthorSize}
             onChange={e => handleAuthorSizeChange(e.target.value)} className="w-full mt-1 accent-white" />
+        </section>
+
+        {/* Texture overlay */}
+        <section>
+          <label className="section-label">Texture</label>
+          <select
+            value={post.texture || ''}
+            onChange={e => onChange({ ...post, texture: e.target.value })}
+            className="input w-full mt-1"
+          >
+            <option value="">None</option>
+            <option value="/textures/textura-1.jpg">Textura 1</option>
+            <option value="/textures/textura-2.jpg">Textura 2</option>
+            <option value="/textures/texture-3.jpeg">Textura 3</option>
+            <option value="/textures/texture-4.jpeg">Textura 4</option>
+            <option value="/textures/texture-5.jpeg">Textura 5</option>
+            <option value="/textures/texture-6.jpeg">Textura 6</option>
+            <option value="/textures/texture-7.jpeg">Textura 7</option>
+          </select>
+          {post.texture && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label className="section-label" style={{ margin: 0 }}>Opacity</label>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{Math.round((post.textureOpacity ?? 0.5) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min={0} max={1} step={0.01}
+                  value={post.textureOpacity ?? 0.5}
+                  onChange={e => onChange({ ...post, textureOpacity: Number(e.target.value) })}
+                  style={{ width: '100%', accentColor: '#fff', cursor: 'pointer' }}
+                />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <label className="section-label" style={{ margin: 0 }}>Scale</label>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{(post.textureScale ?? 0.3).toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range" min={0.05} max={2} step={0.05}
+                  value={post.textureScale ?? 0.3}
+                  onChange={e => onChange({ ...post, textureScale: Number(e.target.value) })}
+                  style={{ width: '100%', accentColor: '#fff', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Fine</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Large</span>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Text color */}
@@ -526,7 +626,23 @@ export default function ControlPanel({ post, onChange }) {
         {/* Overlay — for image-based templates */}
         {(template === 'quote-bg' || template === 'saint-highlight') && (
           <section>
-            <label className="section-label">Overlay Color</label>
+            <label className="section-label">Overlay</label>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 10 }}>
+              {[{ id: 'solid', label: 'Solid' }, { id: 'gradient', label: 'Gradient ↑' }].map(opt => {
+                const active = (post.overlayMode || 'solid') === opt.id
+                return (
+                  <button key={opt.id} onClick={() => onChange({ ...post, overlayMode: opt.id })}
+                    style={{
+                      flex: 1, fontSize: 11, fontWeight: 500, padding: '5px 8px', borderRadius: 6,
+                      border: active ? '1px solid rgba(255,255,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                      background: active ? 'rgba(255,255,255,0.12)' : 'transparent',
+                      color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                      cursor: active ? 'default' : 'pointer', outline: 'none', transition: 'all 0.12s',
+                    }}>{opt.label}</button>
+                )
+              })}
+            </div>
+            <label className="section-label">Color</label>
             <div className="flex items-center gap-2 mt-1">
               <input type="color" value={post.overlayColor} onChange={set('overlayColor')}
                 className="w-8 h-8 rounded cursor-pointer bg-transparent border-0" />
@@ -540,22 +656,91 @@ export default function ControlPanel({ post, onChange }) {
           </section>
         )}
 
-        {/* Content / Text position — not applicable to split-quote (always centered) */}
-        {template !== 'split-quote' && <section>
-          <label className="section-label">
-            {(template === 'saint-day' || template === 'saint-highlight') ? 'Content Position' : 'Text Position'}
-          </label>
-          <div className="grid grid-cols-3 gap-1 mt-1">
-            {['top', 'middle', 'bottom'].map(pos => (
-              <button key={pos} onClick={() => onChange({ ...post, textPosition: pos })}
-                className={`text-xs py-1.5 rounded border transition-all capitalize
-                  ${post.textPosition === pos
-                    ? 'bg-white text-black border-white'
-                    : 'border-white/20 text-white/50 hover:border-white/40'}`}>
-                {pos}
-              </button>
-            ))}
+        {/* Text layout */}
+        <section>
+          {template !== 'split-quote' && <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label className="section-label">
+                {(template === 'saint-day' || template === 'saint-highlight') ? 'Content Position' : 'Text Position'}
+              </label>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontVariantNumeric: 'tabular-nums' }}>
+                {Math.round(post.textPositionY ?? 75)}%
+              </span>
+            </div>
+            <input
+              type="range" min={0} max={100} step={1}
+              value={post.textPositionY ?? 75}
+              onChange={e => onChange({ ...post, textPositionY: Number(e.target.value) })}
+              style={{ width: '100%', accentColor: '#fff', cursor: 'pointer' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, marginBottom: 12 }}>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Top</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Bottom</span>
+            </div>
+          </>}
+
+          {/* Text width scope selector */}
+          <div style={{ display: 'flex', gap: 3, marginBottom: 8 }}>
+            {SIZE_SCOPES.map(scope => {
+              const active = textWidthScope === scope.key
+              const hasOverride = scope.key !== 'all' && post.textWidths?.[scope.key] !== undefined
+              return (
+                <button key={scope.key} onClick={() => setTextWidthScope(scope.key)} style={{
+                  flex: 1, fontSize: 10, fontWeight: 600, padding: '3px 4px', borderRadius: 4,
+                  border: active ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                  background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  color: active ? '#fff' : 'rgba(255,255,255,0.4)',
+                  cursor: 'pointer', outline: 'none', position: 'relative', transition: 'all 0.12s',
+                }}>
+                  {scope.label}
+                  {hasOverride && <span style={{ position: 'absolute', top: 2, right: 3, width: 4, height: 4, borderRadius: '50%', background: 'rgba(255,255,255,0.6)' }} />}
+                </button>
+              )
+            })}
+            {textWidthScope !== 'all' && post.textWidths?.[textWidthScope] !== undefined && (
+              <button onClick={() => {
+                const next = { ...(post.textWidths || {}) }
+                delete next[textWidthScope]
+                onChange({ ...post, textWidths: next })
+              }} style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px' }}>↺</button>
+            )}
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <label className="section-label" style={{ margin: 0 }}>Text Width</label>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontVariantNumeric: 'tabular-nums' }}>
+              {Math.round((textWidthScope === 'all' ? (post.textWidth ?? 100) : (post.textWidths?.[textWidthScope] ?? post.textWidth ?? 100)))}%
+            </span>
+          </div>
+          <input
+            type="range" min={20} max={100} step={1}
+            value={textWidthScope === 'all' ? (post.textWidth ?? 100) : (post.textWidths?.[textWidthScope] ?? post.textWidth ?? 100)}
+            onChange={e => {
+              const v = Number(e.target.value)
+              if (textWidthScope === 'all') onChange({ ...post, textWidth: v, textWidths: {} })
+              else onChange({ ...post, textWidths: { ...(post.textWidths || {}), [textWidthScope]: v } })
+            }}
+            style={{ width: '100%', accentColor: '#fff', cursor: 'pointer' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Narrow</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.2)' }}>Full</span>
+          </div>
+        </section>
+
+        {/* Quote marks toggle — only for quote templates */}
+        {(template === 'quote' || template === 'default' || !template) && <section>
+          <label className="section-label">Quote Marks</label>
+          <button
+            onClick={() => onChange({ ...post, showQuoteMark: post.showQuoteMark === false ? true : false })}
+            className={`mt-1 w-full py-1.5 rounded border text-xs transition-all ${
+              post.showQuoteMark === false
+                ? 'border-white/20 text-white/40'
+                : 'bg-white/10 border-white/35 text-white/80'
+            }`}
+          >
+            {post.showQuoteMark === false ? '" Hidden' : '" Visible'}
+          </button>
         </section>}
 
         {/* Reviewed */}

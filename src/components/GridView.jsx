@@ -45,7 +45,7 @@ function makePost(imageUrl = '', template = 'quote-bg') {
     authorFont: 'Aleo',
     quoteSize: 24,
     authorSize: 20,
-    quoteSizes: { '4x5': 20, '9x16': 14 },
+    quoteSizes: {},
     authorSizes: {},
     textColor: template === 'split-quote' ? '#4a3025' : '#ffffff',
     dateColor: '',
@@ -53,6 +53,8 @@ function makePost(imageUrl = '', template = 'quote-bg') {
     overlayColor: '#000000',
     overlayOpacity: 0.35,
     textPosition: 'bottom',
+    textPositionY: 75,
+    showQuoteMark: false,
     // story text overlay (9:16)
     storyRichText: '',
     storyTextFont: 'Aleo',
@@ -1248,12 +1250,41 @@ export default function GridView({ posts, onPostsChange, onEditPost, scrollY = 0
         onClick={() => setSelectedIds(new Set())}
       >
         {realPosts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-white/15">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-            <p className="text-xs">Search Wikimedia or paste URLs to get started</p>
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <div className="flex flex-col items-center gap-2 mb-2 text-white/20">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+              </svg>
+              <p className="text-xs">No posts yet</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  padding: '10px 22px', borderRadius: 8, border: 'none', outline: 'none',
+                  background: '#ffffff', color: '#000000',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                Open File
+              </button>
+              <button
+                onClick={handleNewProject}
+                style={{
+                  padding: '10px 22px', borderRadius: 8, outline: 'none',
+                  border: '1px solid rgba(255,255,255,0.25)', background: 'transparent',
+                  color: 'rgba(255,255,255,0.65)',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)'; e.currentTarget.style.color = '#fff' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)' }}
+              >
+                Create New Post
+              </button>
+            </div>
           </div>
         ) : (
           <div className="min-h-full flex flex-col items-center p-8 gap-4" onClick={e => e.stopPropagation()}>

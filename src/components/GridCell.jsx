@@ -26,6 +26,10 @@ export default function GridCell({ post, index, total, onSelect, onEdit, onRemov
   }
 
   useEffect(() => {
+    if (post.texture) loadImage(post.texture).catch(() => {})
+  }, [post.texture])
+
+  useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -33,6 +37,7 @@ export default function GridCell({ post, index, total, onSelect, onEdit, onRemov
       ...post,
       quoteSize: post.quoteSizes?.[previewFormat] ?? post.quoteSize,
       authorSize: post.authorSizes?.[previewFormat] ?? post.authorSize,
+      textWidth: post.textWidths?.[previewFormat] ?? post.textWidth,
     }
 
     if (!post.imageUrl) {
